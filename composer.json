@@ -1,0 +1,46 @@
+{
+    "name": "laraxgram/watchdog",
+    "description": "Tails and Manage your application logs.",
+    "keywords": ["laragram", "watchdog", "tails", "log", "laravel"],
+    "homepage": "https://github.com/laraxgram/watchdog",
+    "license": "MIT",
+    "support": {
+        "issues": "https://github.com/laraxgram/watchdog/issues",
+        "source": "https://github.com/laraxgram/watchdog"
+    },
+    "authors": [
+        {
+            "name": "AmirHkrg",
+            "email": "amirh.kargar85@gmail.com"
+        },
+        {
+            "name": "LordKayaba",
+            "email": "lordiroh3@gmail.com"
+        }
+    ],
+    "require": {
+        "php": "^8.2.0",
+        "laraxgram/core": "^3",
+        "ext-mbstring": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "LaraGram\\Watchdog\\": "src/"
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "1.x-dev"
+        },
+        "laragram": {
+            "providers": [
+                "LaraGram\\Watchdog\\WatchdogServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
