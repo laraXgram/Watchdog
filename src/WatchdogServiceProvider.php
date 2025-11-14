@@ -73,10 +73,7 @@ class WatchdogServiceProvider extends ServiceProvider
             ], 'watchdog-config');
         }
 
-        if (
-            config('watchdog.manager.enabled') &&
-            in_array(app('request')?->message?->from?->id, config('watchdog.manager.admins'))
-        ) {
+        if (config('watchdog.manager.enabled')) {
             $this->loadListensFrom(__DIR__ . "/Manager/listens.php");
         }
     }

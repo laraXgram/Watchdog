@@ -2,12 +2,24 @@
 
 namespace LaraGram\Watchdog\Manager\Controllers;
 
+use LaraGram\Listening\Controllers\Middleware;
 use LaraGram\Request\Request;
 use LaraGram\Support\Facades\File;
+use LaraGram\Watchdog\Manager\Middleware\IsManagerAdmin;
 use LaraGram\Watchdog\Manager\Parser;
 
 class LogManagerController
 {
+    /**
+     * Get the middleware that should be assigned to the controller.
+     */
+    public static function middleware(): array
+    {
+        return [
+            new Middleware(IsManagerAdmin::class),
+        ];
+    }
+
     /**
      * Show log file list
      */
