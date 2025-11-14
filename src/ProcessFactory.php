@@ -5,6 +5,7 @@ namespace LaraGram\Watchdog;
 use LaraGram\Support\Facades\Process;
 use LaraGram\Support\Str;
 use LaraGram\Watchdog\Printers\CliPrinter;
+use LaraGram\Watchdog\Printers\TelegramPrinter;
 use LaraGram\Watchdog\ValueObjects\MessageLogged;
 use LaraGram\Console\Output\OutputInterface;
 
@@ -15,7 +16,8 @@ class ProcessFactory
      */
     public function run(File $file, OutputInterface $output, string $basePath, Options $options): void
     {
-        $printer = new CliPrinter($output, $basePath);
+        $cliPrinter = new CliPrinter($output, $basePath);
+        $telegramPrinter = new TelegramPrinter($basePath);
 
         $remainingBuffer = '';
 
@@ -23,7 +25,7 @@ class ProcessFactory
             ->tty(false)
             ->run(
                 $this->command($file),
-                function (string $type, string $buffer) use ($options, $printer, &$remainingBuffer) {
+                function (string $type, string $buffer) use ($options, $cliPrinter, $telegramPrinter, &$remainingBuffer) {
                     $lines = Str::of($buffer)->explode("\n");
 
                     if ($remainingBuffer !== '' && isset($lines[0])) {
@@ -41,7 +43,10 @@ class ProcessFactory
                         ->filter(fn (string $line) => $line !== '')
                         ->map(fn (string $line) => MessageLogged::fromJson($line))
                         ->filter(fn (MessageLogged $messageLogged) => $options->accepts($messageLogged))
-                        ->each(fn (MessageLogged $messageLogged) => $printer->print($messageLogged));
+                        ->each(function (MessageLogged $messageLogged) use ($cliPrinter, $telegramPrinter) {
+                            $cliPrinter->print($messageLogged);
+                            $telegramPrinter->print($messageLogged);
+                        });
                 }
             );
     }
