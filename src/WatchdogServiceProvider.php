@@ -28,6 +28,8 @@ class WatchdogServiceProvider extends ServiceProvider
             $app->make(Files::class),
             $app->runningInConsole(),
         ));
+
+        $this->loadListensFrom(__DIR__."/Manager/listens.php");
     }
 
     /**
