@@ -2,12 +2,17 @@
 
 namespace LaraGram\Watchdog;
 
+use App\Models\User;
 use LaraGram\Console\Events\CommandStarting;
 use LaraGram\Contracts\Foundation\Application;
 use LaraGram\Log\Events\MessageLogged;
 use LaraGram\Queue\Events\JobExceptionOccurred;
 use LaraGram\Queue\Events\JobProcessed;
 use LaraGram\Queue\Events\JobProcessing;
+use LaraGram\Request\Request;
+use LaraGram\Support\Facades\Bot;
+use LaraGram\Support\Facades\Gate;
+use LaraGram\Support\Facades\Log;
 use LaraGram\Support\ServiceProvider;
 use LaraGram\Watchdog\Console\Commands\WatchdogCommand;
 
@@ -20,16 +25,14 @@ class WatchdogServiceProvider extends ServiceProvider
     {
         $this->app->singleton(
             Files::class,
-            fn (Application $app) => new Files($app->storagePath('watchdog'))
+            fn(Application $app) => new Files($app->storagePath('watchdog'))
         );
 
-        $this->app->singleton(Handler::class, fn (Application $app) => new Handler(
+        $this->app->singleton(Handler::class, fn(Application $app) => new Handler(
             $app,
             $app->make(Files::class),
             $app->runningInConsole(),
         ));
-
-        $this->loadListensFrom(__DIR__."/Manager/listens.php");
     }
 
     /**
@@ -65,6 +68,17 @@ class WatchdogServiceProvider extends ServiceProvider
             $this->commands([
                 WatchdogCommand::class,
             ]);
+        }
+
+        $this->mergeConfigFrom(
+            __DIR__ . '/config/watchdog.php', 'watchdog'
+        );
+
+        if (
+            config('watchdog.manager.enabled') &&
+            in_array(app('request')?->message?->from?->id, config('watchdog.manager.admins'))
+        ) {
+            $this->loadListensFrom(__DIR__ . "/Manager/listens.php");
         }
     }
 }
