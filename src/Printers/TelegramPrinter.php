@@ -4,18 +4,9 @@ namespace LaraGram\Watchdog\Printers;
 
 use LaraGram\Keyboard\Make;
 use LaraGram\Request\Request;
-use LaraGram\Support\Collection;
 use LaraGram\Support\Facades\Keyboard;
-use LaraGram\Support\Str;
 use LaraGram\Watchdog\Contracts\Printer;
 use LaraGram\Watchdog\ValueObjects\MessageLogged;
-use LaraGram\Watchdog\ValueObjects\Origin\Bot;
-use LaraGram\Watchdog\ValueObjects\Origin\Queue;
-use LaraGram\Console\Output\OutputInterface;
-
-use function LaraGram\Console\Prompts\Convertor\render;
-use function LaraGram\Console\Prompts\Convertor\renderUsing;
-use function LaraGram\Console\Prompts\Convertor\terminal;
 
 class TelegramPrinter implements Printer
 {
@@ -78,12 +69,14 @@ class TelegramPrinter implements Printer
             $parts[] = "\n📚 <b>Stack Trace:</b>\n<blockquote expandable>{$traceHtml}</blockquote>";
         }
 
-        $request->sendMessage(
-            config('watchdog.report_chat'),
-            implode("", $parts),
-            'html',
-            reply_markup: $keyboard
-        );
+        foreach (config('watchdog.report.chats') as $chat) {
+            $request->sendMessage(
+                $chat,
+                implode("", $parts),
+                'html',
+                reply_markup: $keyboard
+            );
+        }
     }
 
     /**
