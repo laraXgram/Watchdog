@@ -2,17 +2,12 @@
 
 namespace LaraGram\Watchdog;
 
-use App\Models\User;
 use LaraGram\Console\Events\CommandStarting;
 use LaraGram\Contracts\Foundation\Application;
 use LaraGram\Log\Events\MessageLogged;
 use LaraGram\Queue\Events\JobExceptionOccurred;
 use LaraGram\Queue\Events\JobProcessed;
 use LaraGram\Queue\Events\JobProcessing;
-use LaraGram\Request\Request;
-use LaraGram\Support\Facades\Bot;
-use LaraGram\Support\Facades\Gate;
-use LaraGram\Support\Facades\Log;
 use LaraGram\Support\ServiceProvider;
 use LaraGram\Watchdog\Console\Commands\WatchdogCommand;
 
@@ -64,15 +59,19 @@ class WatchdogServiceProvider extends ServiceProvider
             $handler->setLastLifecycleEvent(null);
         });
 
+        $this->mergeConfigFrom(
+            __DIR__ . '/config/watchdog.php', 'watchdog'
+        );
+
         if ($this->app->runningInConsole()) {
             $this->commands([
                 WatchdogCommand::class,
             ]);
-        }
 
-        $this->mergeConfigFrom(
-            __DIR__ . '/config/watchdog.php', 'watchdog'
-        );
+            $this->publishes([
+                __DIR__.'/config/watchdog.php' => config_path('watchdog.php'),
+            ], 'watchdog-config');
+        }
 
         if (
             config('watchdog.manager.enabled') &&
