@@ -228,7 +228,6 @@ function buildLogEntryKeyboard(int $pointerIndex, int $entryIndex, int $totalEnt
         ),
         Make::row(
             Make::callbackData('🏠 Home', "log_load_{$pointerIndex}"),
-            Make::callbackData('❌ Delete', "log_delete_{$pointerIndex}")
         )
     )->get();
 }
