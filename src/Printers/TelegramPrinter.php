@@ -72,7 +72,7 @@ class TelegramPrinter implements Printer
 
         try {
             foreach (config('watchdog.report.chats') as $chat) {
-                $request->sendMessage(
+                $request->connection('watchdog.report.connection')->sendMessage(
                     $chat,
                     implode("", $parts),
                     'html',
@@ -80,7 +80,7 @@ class TelegramPrinter implements Printer
                 );
             }
         } catch (\Exception) {
-            Log::error("Watchdog: Set a valid bot connection for the watchdog (cannot be 'auto')");
+            Log::error("Set a valid bot connection for the watchdog (cannot be 'auto')");
         }
     }
 

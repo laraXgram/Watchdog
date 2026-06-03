@@ -24,10 +24,11 @@ return [
     | Automatic Log Reporting
     |--------------------------------------------------------------------------
     |
-    | enabled: Enable or disable sending logs/errors to Telegram.
-    | chats:   Telegram chat IDs that should receive the logs.
-    | levels:  Log levels that will be reported.
-    |          Options: DEBUG, INFO, NOTICE, WARNING, ERROR, CRITICAL, ALERT, EMERGENCY
+    | enabled:    Enable or disable sending logs/errors to Telegram.
+    | chats:      Telegram chat IDs that should receive the logs.
+    | levels:     Log levels that will be reported.
+    |             Options: DEBUG, INFO, NOTICE, WARNING, ERROR, CRITICAL, ALERT, EMERGENCY
+    | connection: Bot Connection for sending reports.
     |
     */
 
@@ -36,7 +37,8 @@ return [
         'chats' => [
             //
         ],
-        'levels' => ['*']
+        'levels' => ['*'],
+        'connection' => 'bot'
     ],
 
 
