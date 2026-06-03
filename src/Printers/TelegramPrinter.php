@@ -5,6 +5,7 @@ namespace LaraGram\Watchdog\Printers;
 use LaraGram\Keyboard\Make;
 use LaraGram\Request\Request;
 use LaraGram\Support\Facades\Keyboard;
+use LaraGram\Support\Facades\Log;
 use LaraGram\Watchdog\Contracts\Printer;
 use LaraGram\Watchdog\ValueObjects\MessageLogged;
 
@@ -69,13 +70,17 @@ class TelegramPrinter implements Printer
             $parts[] = "\n📚 <b>Stack Trace:</b>\n<blockquote expandable>{$traceHtml}</blockquote>";
         }
 
-        foreach (config('watchdog.report.chats') as $chat) {
-            $request->sendMessage(
-                $chat,
-                implode("", $parts),
-                'html',
-                reply_markup: $keyboard
-            );
+        try {
+            foreach (config('watchdog.report.chats') as $chat) {
+                $request->sendMessage(
+                    $chat,
+                    implode("", $parts),
+                    'html',
+                    reply_markup: $keyboard
+                );
+            }
+        } catch (\Exception) {
+            Log::error("Watchdog: Set a valid bot connection for the watchdog (cannot be 'auto')");
         }
     }
 
