@@ -20,7 +20,7 @@
     ],
     "require": {
         "php": "^8.2.0",
-        "laraxgram/core": "^3",
+        "laraxgram/core": "^3|^4",
         "ext-mbstring": "*"
     },
     "autoload": {
