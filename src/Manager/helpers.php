@@ -64,12 +64,12 @@ function buildNavigationKeyboard(int $pointerIndex, int $totalFiles): string
 
     return Keyboard::inlineKeyboardMarkup(
         Make::row(
-            Make::callbackData($upDisabled ? '⬆️ —' : '⬆️ Up', $upDisabled ? 'noop' : "log_load_{$upIndex}"),
-            Make::callbackData($downDisabled ? '⬇️ —' : '⬇️ Down', $downDisabled ? 'noop' : "log_load_{$downIndex}")
+            Make::callbackData($upDisabled ? '⬆️ —' : '⬆️ Up', $upDisabled ? 'noop' : "watchdog_log_load_{$upIndex}"),
+            Make::callbackData($downDisabled ? '⬇️ —' : '⬇️ Down', $downDisabled ? 'noop' : "watchdog_log_load_{$downIndex}")
         ),
         Make::row(
-            Make::callbackData('📖 Read', "log_read_{$pointerIndex}"),
-            Make::callbackData('❌ Delete', "log_delete_{$pointerIndex}")
+            Make::callbackData('📖 Read', "watchdog_log_read_{$pointerIndex}"),
+            Make::callbackData('❌ Delete', "watchdog_log_delete_{$pointerIndex}")
         )
     )->get();
 }
@@ -221,13 +221,13 @@ function buildLogEntryKeyboard(int $pointerIndex, int $entryIndex, int $totalEnt
 
     return Keyboard::inlineKeyboardMarkup(
         Make::row(
-            Make::callbackData($firstDisabled ? '⏮ —' : '⏮ First', $firstDisabled ? 'noop' : "log_entry_{$pointerIndex}_0"),
-            Make::callbackData($prevDisabled ? '⬅️ —' : '⬅️ Prev', $prevDisabled ? 'noop' : "log_entry_{$pointerIndex}_{$prevEntry}"),
-            Make::callbackData($nextDisabled ? '➡️ —' : '➡️ Next', $nextDisabled ? 'noop' : "log_entry_{$pointerIndex}_{$nextEntry}"),
-            Make::callbackData($lastDisabled ? '⏭ —' : '⏭ Last', $lastDisabled ? 'noop' : "log_entry_{$pointerIndex}_" . ($totalEntries - 1))
+            Make::callbackData($firstDisabled ? '⏮ —' : '⏮ First', $firstDisabled ? 'noop' : "watchdog_log_entry_{$pointerIndex}_0"),
+            Make::callbackData($prevDisabled ? '⬅️ —' : '⬅️ Prev', $prevDisabled ? 'noop' : "watchdog_log_entry_{$pointerIndex}_{$prevEntry}"),
+            Make::callbackData($nextDisabled ? '➡️ —' : '➡️ Next', $nextDisabled ? 'noop' : "watchdog_log_entry_{$pointerIndex}_{$nextEntry}"),
+            Make::callbackData($lastDisabled ? '⏭ —' : '⏭ Last', $lastDisabled ? 'noop' : "watchdog_log_entry_{$pointerIndex}_" . ($totalEntries - 1))
         ),
         Make::row(
-            Make::callbackData('🏠 Home', "log_load_{$pointerIndex}"),
+            Make::callbackData('🏠 Home', "watchdog_log_load_{$pointerIndex}"),
         )
     )->get();
 }

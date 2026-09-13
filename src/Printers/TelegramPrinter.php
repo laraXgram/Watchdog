@@ -69,13 +69,17 @@ class TelegramPrinter implements Printer
             $parts[] = "\n📚 <b>Stack Trace:</b>\n<blockquote expandable>{$traceHtml}</blockquote>";
         }
 
-        foreach (config('watchdog.report.chats') as $chat) {
-            $request->sendMessage(
-                $chat,
-                implode("", $parts),
-                'html',
-                reply_markup: $keyboard
-            );
+        try {
+            foreach (config('watchdog.report.chats') as $chat) {
+                $request->connection(config('watchdog.report.connection'))->sendMessage(
+                    $chat,
+                    implode("", $parts),
+                    'html',
+                    reply_markup: $keyboard
+                );
+            }
+        } catch (\Exception) {
+            Log::error("Set a valid bot connection for the watchdog (cannot be 'auto')");
         }
     }
 
