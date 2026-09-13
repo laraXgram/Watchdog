@@ -2,6 +2,7 @@
 
 use LaraGram\Support\Facades\Bot;
 use LaraGram\Watchdog\Manager\Controllers\LogManagerController;
+use LaraGram\Watchdog\Manager\Middleware\IsManagerAdmin;
 
 Bot::controller(LogManagerController::class)
     ->name('watchdog.')

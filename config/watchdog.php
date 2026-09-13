@@ -37,8 +37,7 @@ return [
         'chats' => [
             //
         ],
-        'levels' => ['*'],
-        'connection' => env("WATCHDOG_REPORT_CONNECTION", env("BOT_CONNECTION", 'bot'))
+        'levels' => ['*']
     ],
 
 
