@@ -37,8 +37,7 @@ return [
         'chats' => [
             //
         ],
-        'levels' => ['*'],
-        'connection' => 'bot'
+        'levels' => ['*']
     ],
 
 

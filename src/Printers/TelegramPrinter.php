@@ -5,7 +5,6 @@ namespace LaraGram\Watchdog\Printers;
 use LaraGram\Keyboard\Make;
 use LaraGram\Request\Request;
 use LaraGram\Support\Facades\Keyboard;
-use LaraGram\Support\Facades\Log;
 use LaraGram\Watchdog\Contracts\Printer;
 use LaraGram\Watchdog\ValueObjects\MessageLogged;
 
@@ -72,7 +71,7 @@ class TelegramPrinter implements Printer
 
         try {
             foreach (config('watchdog.report.chats') as $chat) {
-                $request->connection('watchdog.report.connection')->sendMessage(
+                $request->connection(config('watchdog.report.connection'))->sendMessage(
                     $chat,
                     implode("", $parts),
                     'html',

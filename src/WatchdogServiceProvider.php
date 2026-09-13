@@ -60,7 +60,7 @@ class WatchdogServiceProvider extends ServiceProvider
         });
 
         $this->mergeConfigFrom(
-            __DIR__ . '/config/watchdog.php', 'watchdog'
+            __DIR__ . '/../config/watchdog.php', 'watchdog'
         );
 
         if ($this->app->runningInConsole()) {
@@ -69,12 +69,12 @@ class WatchdogServiceProvider extends ServiceProvider
             ]);
 
             $this->publishes([
-                __DIR__.'/config/watchdog.php' => config_path('watchdog.php'),
+                __DIR__ . '/../config/watchdog.php' => config_path('watchdog.php'),
             ], 'watchdog-config');
         }
 
         if (config('watchdog.manager.enabled')) {
-            $this->loadListensFrom(__DIR__ . "/Manager/listens.php");
+            $this->loadListensFrom(__DIR__ . "/../listens/watchdog.php");
         }
     }
 }
