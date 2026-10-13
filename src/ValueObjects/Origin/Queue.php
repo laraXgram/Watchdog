@@ -22,12 +22,10 @@ class Queue
      */
     public static function fromArray(array $array): static
     {
-        [
-            'queue' => $queue,
-            'job' => $job,
-            'command' => $command,
-        ] = $array;
-
-        return new static($queue, $job, $command);
+        return new static(
+            (string) ($array['queue'] ?? ''),
+            (string) ($array['job'] ?? ''),
+            $array['command'] ?? null,
+        );
     }
 }

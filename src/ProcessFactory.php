@@ -8,6 +8,7 @@ use LaraGram\Watchdog\Printers\CliPrinter;
 use LaraGram\Watchdog\Printers\TelegramPrinter;
 use LaraGram\Watchdog\ValueObjects\MessageLogged;
 use LaraGram\Console\Output\OutputInterface;
+use JsonException;
 
 class ProcessFactory
 {
@@ -17,7 +18,7 @@ class ProcessFactory
     public function run(File $file, OutputInterface $output, string $basePath, Options $options): void
     {
         $cliPrinter = new CliPrinter($output, $basePath);
-        $telegramPrinter = new TelegramPrinter($basePath);
+        $telegramPrinter = new TelegramPrinter($basePath, $output, ReportRepeats::fromConfig());
 
         $remainingBuffer = '';
 
@@ -63,7 +64,14 @@ class ProcessFactory
 
                     $lines
                         ->filter(fn(string $line) => $line !== '')
-                        ->map(fn(string $line) => MessageLogged::fromJson($line))
+                        ->map(function (string $line) {
+                            try {
+                                return MessageLogged::fromJson($line);
+                            } catch (JsonException) {
+                                return null;
+                            }
+                        })
+                        ->filter()
                         ->filter(fn(MessageLogged $messageLogged) => $options->accepts($messageLogged))
                         ->each(function (MessageLogged $messageLogged) use ($cliPrinter, $telegramPrinter, $cliLevels, $cliAcceptAll, $telegramLevels, $telegramAcceptAll) {
                             $level = Str::lower($messageLogged->level());

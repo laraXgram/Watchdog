@@ -22,8 +22,12 @@ class Bot
      */
     public static function fromArray(array $array): static
     {
-        ['method' => $method, 'pattern' => $pattern, 'user_id' => $authId] = $array;
+        $authId = $array['user_id'] ?? null;
 
-        return new static($method, $pattern, $authId);
+        return new static(
+            (string) ($array['method'] ?? ''),
+            (string) ($array['pattern'] ?? ''),
+            is_scalar($authId) ? (string) $authId : null,
+        );
     }
 }

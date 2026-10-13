@@ -6,6 +6,7 @@ use LaraGram\Support\Collection;
 use LaraGram\Support\Facades\Keyboard;
 use LaraGram\Support\Str;
 use LaraGram\Watchdog\Manager\Parser;
+use LaraGram\Watchdog\Support\TelegramMessage;
 
 /**
  * Create log message and keyboard for navigation
@@ -86,9 +87,28 @@ function parseLogEntries(string $filePath): Collection
         return collect();
     }
 
-    $content = File::get($filePath);
+    $entries = [];
+    $current = null;
 
-    return collect(preg_split('/(?=\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\])/', $content))
+    foreach (explode("\n", File::get($filePath)) as $line) {
+        if ($current === null || Parser::startsEntry($line)) {
+            if ($current !== null) {
+                $entries[] = $current;
+            }
+
+            $current = $line;
+
+            continue;
+        }
+
+        $current .= "\n" . $line;
+    }
+
+    if ($current !== null) {
+        $entries[] = $current;
+    }
+
+    return collect($entries)
         ->filter(fn($entry) => !empty(trim($entry)))
         ->values();
 }
@@ -127,78 +147,65 @@ function getLogEntryAt(string $filePath, int $entryIndex): ?string
  */
 function formatParsedLog(Parser $parser, int $currentEntry, int $totalEntries, string $fileName): string
 {
-    $levelEmoji = match (strtoupper($parser->level() ?? '')) {
-        'ERROR' => '🔴',
-        'WARNING' => '🟡',
-        'INFO' => '🔵',
-        'DEBUG' => '⚪',
-        'CRITICAL' => '🔥',
-        'ALERT' => '🚨',
-        default => '⚫'
-    };
+    $basePath = base_path() . '/';
+    $relative = fn(?string $file) => $file === null ? null : str_replace($basePath, '', $file);
 
-    $parts = [];
+    $message = (new TelegramMessage)
+        ->line('📄 <b>' . TelegramMessage::escape($fileName) . '</b>')
+        ->line("📋 <b>Entry #{$currentEntry} of {$totalEntries}</b>\n")
+        ->field(TelegramMessage::emoji($parser->level()), 'Level', $parser->level())
+        ->field('⏰', 'Time', $parser->datetime())
+        ->field('📡', 'Channel', $parser->channel())
+        ->field('🏷', 'Type', $parser->type())
+        ->field('👤', 'User ID', $parser->userId());
 
-    $parts[] = "📄 <b>{$fileName}</b>";
-    $parts[] = "📋 <b>Entry #{$currentEntry} of {$totalEntries}</b>\n";
-
-    if ($parser->level()) {
-        $parts[] = "{$levelEmoji} <b>Level:</b> {$parser->level()}";
+    if ($parser->file()) {
+        $message->field('📍', 'Location', $relative($parser->file()) . ($parser->line() ? ":{$parser->line()}" : ''));
     }
 
-    if ($parser->datetime()) {
-        $parts[] = "⏰ <b>Time:</b> {$parser->datetime()}";
+    $message->block('📝 <b>Message:</b>', $parser->message() !== '' ? $parser->message() : $parser->exceptionMessage(), 'pre', 'php', 5);
+
+    if ($parser->exceptionMessage() !== null && $parser->exceptionMessage() !== '' && $parser->exceptionMessage() !== $parser->message()) {
+        $message->block('💥 <b>Exception Message:</b>', $parser->exceptionMessage(), 'pre', 'php', 4);
     }
 
-    if ($parser->type()) {
-        $parts[] = "🏷 <b>Type:</b> <code>{$parser->type()}</code>";
+    if (!empty($context = $parser->context())) {
+        $message->block('🧩 <b>Context:</b>', TelegramMessage::json($context), 'pre', 'json', 3);
     }
 
-    if ($parser->userId()) {
-        $parts[] = "👤 <b>User ID:</b> <code>{$parser->userId()}</code>";
+    if (!empty($extra = $parser->extra())) {
+        $message->block('➕ <b>Extra:</b>', TelegramMessage::json($extra), 'pre', 'json', 2);
     }
 
-    if ($parser->message()) {
-        $parts[] = "\n📝 <b>Message:</b>";
-        $parts[] = "<pre><code class='language-php'>" . mb_substr($parser->message(), 0, 3500) . "</code></pre>";
-    }
+    if (!empty($parser->previous())) {
+        $previous = collect($parser->previous())
+            ->map(fn(array $exception, int $index) => sprintf(
+                "#%d. %s\n  %s%s",
+                $index + 1,
+                $exception['class'] ?? 'Exception',
+                $exception['message'] ?? '',
+                $exception['file'] ? "\n  at " . $relative($exception['file']) . ($exception['line'] ? ":{$exception['line']}" : '') : ''
+            ))
+            ->implode("\n--------\n");
 
-    if ($parser->file() && $parser->line()) {
-        $basePath = base_path();
-        $cleanFile = str_replace($basePath . '/', '', $parser->file());
-
-        $parts[] = "\n📍 <b>Location:</b>";
-        $parts[] = "<code>" . htmlspecialchars($cleanFile, ENT_QUOTES, 'UTF-8') . ":{$parser->line()}</code>";
+        $message->block('🔗 <b>Previous Exceptions:</b>', $previous, 'blockquote', priority: 1);
     }
 
     if (!empty($parser->trace())) {
-        $parts[] = "\n📚 <b>Stack Trace:</b>";
+        $trace = collect($parser->trace())
+            ->map(fn(array $item, int $index) => sprintf(
+                "#%d. %s%s%s",
+                $index + 1,
+                $relative($item['file']),
+                $item['line'] ? ":{$item['line']}" : '',
+                $item['call'] !== '' ? "\n  {$item['call']}" : ''
+            ))
+            ->implode("\n--------\n");
 
-        $traceHtml = collect($parser->trace())
-            ->map(function ($item, $index) {
-                $basePath = base_path();
-                $cleanFile = str_replace($basePath . '/', '', $item['file']);
-                $file = htmlspecialchars($cleanFile, ENT_QUOTES, 'UTF-8');
-
-                $callInfo = '';
-                if (!empty($item['call'])) {
-                    $callInfo = "\n  " . htmlspecialchars($item['call'], ENT_QUOTES, 'UTF-8');
-                }
-
-                return sprintf(
-                    "<b>#%d.</b>\n  %s<b>:</b>%d%s\n<b>--------</b>",
-                    $index + 1,
-                    $file,
-                    $item['line'],
-                    $callInfo
-                );
-            })
-            ->implode("\n");
-
-        $parts[] = "<blockquote expandable>{$traceHtml}</blockquote>";
+        $message->block('📚 <b>Stack Trace:</b>', $trace, 'blockquote', priority: 0);
     }
 
-    return implode("\n", $parts);
+    return $message->toHtml();
 }
 
 /**

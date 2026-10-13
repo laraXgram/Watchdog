@@ -2,11 +2,18 @@
 
 namespace LaraGram\Watchdog\Printers;
 
+use LaraGram\Console\Output\OutputInterface;
 use LaraGram\Keyboard\Make;
+use LaraGram\Laraquest\Mode;
 use LaraGram\Request\Request;
 use LaraGram\Support\Facades\Keyboard;
 use LaraGram\Watchdog\Contracts\Printer;
+use LaraGram\Watchdog\ReportRepeats;
+use LaraGram\Watchdog\Support\TelegramMessage;
 use LaraGram\Watchdog\ValueObjects\MessageLogged;
+use LaraGram\Watchdog\ValueObjects\Origin\Console;
+use LaraGram\Watchdog\ValueObjects\Origin\Queue;
+use Throwable;
 
 class TelegramPrinter implements Printer
 {
@@ -15,84 +22,164 @@ class TelegramPrinter implements Printer
      */
     public function print(MessageLogged $messageLogged): void
     {
-        $classOrType = $messageLogged->classOrType();
-        $emoji = $this->emoji($messageLogged->color());
-        $message = $messageLogged->message();
-        $date = $messageLogged->date();
-        $level = $messageLogged->level();
-        $file = $this->file($messageLogged->file());
-        $traceHtml = $this->traceHtml($messageLogged);
-        $userId = $messageLogged->userId();
-
-        /** @var Request $request */
-        $request = app('request');
-
-        $keyboard = Keyboard::inlineKeyboardMarkup(
-            Make::row(
-                Make::callbackData($emoji, 'watchdog_ignore')
-            )
-        )->get();
-
-        $parts = [];
-
-        if ($level) {
-            $parts[] = "{$emoji} <b>{$level}</b> {$emoji}\n\n";
-        }
-
-        if ($message) {
-            $parts[] = sprintf(
-                "📝 <b>Message:</b>\n<pre><code class='language-php'>%s</code></pre>\n\n",
-                htmlspecialchars($message, ENT_QUOTES, 'UTF-8')
-            );
-        }
-
-        if ($date) {
-            $parts[] = "⏰ <b>Time:</b> <code>{$date}</code>\n";
-        }
-
-        if ($classOrType) {
-            $parts[] = "🏷 <b>Type:</b> <code>{$classOrType}</code>\n";
-        }
-
-        if ($file) {
-            $parts[] = sprintf(
-                "📍 <b>File:</b> <code>%s</code>\n",
-                htmlspecialchars($file, ENT_QUOTES, 'UTF-8')
-            );
-        }
-
-        if ($userId) {
-            $parts[] = "👤 <b>User ID:</b> <code>{$userId}</code>\n";
-        }
-
-        if (!empty(trim($traceHtml ?? ''))) {
-            $parts[] = "\n📚 <b>Stack Trace:</b>\n<blockquote expandable>{$traceHtml}</blockquote>";
-        }
-
         try {
-            foreach (config('watchdog.report.chats') as $chat) {
-                $request->connection(config('watchdog.report.connection'))->sendMessage(
-                    $chat,
-                    implode("", $parts),
-                    'html',
-                    reply_markup: $keyboard
-                );
+            $fingerprint = $messageLogged->fingerprint();
+            $last = $this->repeats?->last();
+
+            // The same log message as the last report edits it, anything else starts a new one
+            $repeated = $last !== null && $last['fingerprint'] === $fingerprint;
+
+            $count = $repeated ? $last['count'] + 1 : 1;
+            $firstAt = $repeated ? $last['first_at'] : $messageLogged->date();
+
+            $text = $this->text($messageLogged, $count, $firstAt);
+            $keyboard = $this->keyboard($messageLogged, $count);
+
+            $messages = [];
+
+            foreach ((array) config('watchdog.report.chats', []) as $chat) {
+                $messageId = $repeated ? ($last['messages'][$chat] ?? null) : null;
+
+                if ($messageId !== null && $this->edit($chat, $messageId, $text, $keyboard)) {
+                    $messages[$chat] = $messageId;
+
+                    continue;
+                }
+
+                if (($messageId = $this->send($chat, $text, $keyboard)) !== null) {
+                    $messages[$chat] = $messageId;
+                }
             }
-        } catch (\Exception) {
-            Log::error("Set a valid bot connection for the watchdog (cannot be 'auto')");
+
+            $this->repeats?->remember([
+                'fingerprint' => $fingerprint,
+                'count' => $count,
+                'first_at' => $firstAt,
+                'messages' => $messages,
+            ]);
+        } catch (Throwable $e) {
+            $this->warn($e->getMessage());
         }
     }
 
     /**
      * Creates a new instance printer instance.
      */
-    public function __construct(protected string $basePath)
-    {
+    public function __construct(
+        protected string $basePath,
+        protected ?OutputInterface $output = null,
+        protected ?ReportRepeats $repeats = null,
+    ) {
         //
     }
 
     /**
-     * Gets the file html.
+     * Builds the message text.
+     */
+    protected function text(MessageLogged $messageLogged, int $count, string $firstAt): string
+    {
+        $level = $messageLogged->level();
+        $emoji = TelegramMessage::emoji($level);
+
+        $message = (new TelegramMessage)
+            ->line("{$emoji} <b>".TelegramMessage::escape($level)."</b> {$emoji}");
+
+        if ($count > 1) {
+            $message
+                ->field('🔁', 'Repeated', "{$count} times")
+                ->field('🕐', 'First Seen', $firstAt);
+        }
+
+        $message
+            ->block('📝 <b>Message:</b>', $messageLogged->message(), 'pre', 'php', 5)
+            ->line('')
+            ->field('⏰', $count > 1 ? 'Last Seen' : 'Time', $messageLogged->date())
+            ->field('🏷', 'Type', $messageLogged->classOrType())
+            ->field('📍', 'File', $this->file($messageLogged->file()))
+            ->field('👤', 'User ID', $messageLogged->userId())
+            ->field('⚙️', 'Origin', $this->origin($messageLogged))
+            ->block('💥 <b>Exception Message:</b>', $messageLogged->exceptionMessage(), 'pre', 'php', 4);
+
+        if (! empty($context = $messageLogged->context())) {
+            $message->block('🧩 <b>Context:</b>', TelegramMessage::json($context), 'pre', 'json', 3);
+        }
+
+        return $message
+            ->block('🔗 <b>Previous Exceptions:</b>', $this->previous($messageLogged), 'blockquote', priority: 1)
+            ->block('📚 <b>Stack Trace:</b>', $this->trace($messageLogged), 'blockquote', priority: 0)
+            ->toHtml();
+    }
+
+    /**
+     * Builds the message keyboard.
+     */
+    protected function keyboard(MessageLogged $messageLogged, int $count): string
+    {
+        $emoji = TelegramMessage::emoji($messageLogged->level());
+
+        return Keyboard::inlineKeyboardMarkup(
+            Make::row(
+                Make::callbackData($count > 1 ? "{$emoji} ×{$count}" : $emoji, 'watchdog_ignore')
+            )
+        )->get();
+    }
+
+    /**
+     * Sends a new report, returning its message id.
+     */
+    protected function send(int|string $chat, string $text, string $keyboard): ?int
+    {
+        $response = $this->api()->sendMessage($chat, $text, 'HTML', reply_markup: $keyboard);
+
+        if ($response->failed()) {
+            $this->warn("[{$chat}] ".$response->description());
+
+            return null;
+        }
+
+        return is_numeric($messageId = $response->message_id) ? (int) $messageId : null;
+    }
+
+    /**
+     * Edits a sent report, returning whether it can still be edited.
+     */
+    protected function edit(int|string $chat, int $messageId, string $text, string $keyboard): bool
+    {
+        $response = $this->api()->editMessageText($text, $chat, $messageId, 'HTML', $keyboard);
+
+        if ($response->isOk()) {
+            return true;
+        }
+
+        // When rate limited the next repeat updates the counter, the message itself is still there
+        return $response->retryAfter() !== null
+            || str_contains((string) $response->description(), 'message is not modified');
+    }
+
+    /**
+     * Gets the request that talks to the reporting bot.
+     */
+    protected function api(): Request
+    {
+        /** @var Request $request */
+        $request = app('request');
+
+        return $request
+            ->connection((string) (config('watchdog.report.connection') ?? 'auto'))
+            ->mode(Mode::CURL)
+            ->silent();
+    }
+
+    /**
+     * Writes a reporting failure to the console, without logging it again.
+     */
+    protected function warn(string $message): void
+    {
+        $this->output?->writeln("Watchdog could not report to Telegram: {$message}", OutputInterface::OUTPUT_RAW);
+    }
+
+    /**
+     * Gets the file relative to the base path.
      */
     protected function file(?string $file): ?string
     {
@@ -100,43 +187,54 @@ class TelegramPrinter implements Printer
             return null;
         }
 
-        return str_replace($this->basePath . '/', '', $file);
-    }
-
-    protected function emoji($color)
-    {
-        return match ($color) {
-            'gray' => '⚪️',
-            'blue' => '🔵',
-            'yellow' => '🟡',
-            'red' => '🔴',
-            default => '⚪️',
-        };
+        return str_replace($this->basePath.'/', '', $file);
     }
 
     /**
-     * Gets the trace html.
+     * Gets the origin of the log message.
      */
-    public function traceHtml(MessageLogged $messageLogged): string
+    protected function origin(MessageLogged $messageLogged): ?string
     {
-        $trace = $messageLogged->trace();
+        $origin = $messageLogged->origin();
 
-        if (is_null($trace)) {
-            return '';
-        }
+        $parts = match (true) {
+            $origin instanceof Queue => [$origin->command ? "laragram {$origin->command}" : null, $origin->queue, $origin->job],
+            $origin instanceof Console => [$origin->command ? "laragram {$origin->command}" : null],
+            default => [],
+        };
 
-        return collect($trace)
-            ->map(function (array $frame, int $index) {
-                $number = $index + 1;
+        return collect($parts)->filter()->implode(' · ') ?: null;
+    }
 
-                [
-                    'line' => $line,
-                    'file' => $file,
-                ] = $frame;
+    /**
+     * Gets the previous exceptions text.
+     */
+    protected function previous(MessageLogged $messageLogged): string
+    {
+        return collect($messageLogged->previous())
+            ->map(fn (array $exception, int $index) => sprintf(
+                "#%d. %s\n  %s%s",
+                $index + 1,
+                $exception['class'] ?? 'Exception',
+                $exception['message'] ?? '',
+                $exception['file'] ? "\n  at ".$this->file($exception['file']) : ''
+            ))
+            ->implode("\n--------\n");
+    }
 
-                $file = str_replace($this->basePath . '/', '', $file);
-
-                return "<b>#$number.</b>\n  $file<b>:</b>$line\n<b>--------</b>\n";
-            })->implode('');
+    /**
+     * Gets the trace text.
+     */
+    public function trace(MessageLogged $messageLogged): string
+    {
+        return collect($messageLogged->trace() ?? [])
+            ->values()
+            ->map(fn (array $frame, int $index) => sprintf(
+                '#%d. %s%s',
+                $index + 1,
+                $this->file($frame['file'] ?? '[internal function]'),
+                isset($frame['line']) ? ":{$frame['line']}" : ''
+            ))
+            ->implode("\n--------\n");
     }
 }
