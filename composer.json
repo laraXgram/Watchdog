@@ -19,8 +19,8 @@
         }
     ],
     "require": {
-        "php": "^8.2.0",
-        "laraxgram/core": "^3|^4",
+        "php": "^8.3",
+        "laraxgram/core": "^4.5",
         "ext-mbstring": "*"
     },
     "autoload": {
